@@ -56,14 +56,24 @@ public class Promiscuity {
     @Description("Get the different relationships going in and out of a node.")
     public Stream<RelationshipTypes2> promiscuityPath(@Name("node") Node node) {
         List<String> outgoing = new ArrayList<>();
-       node.getRelationships(Direction.OUTGOING).iterator()
-                .forEachRemaining(rel -> AddDistinct(outgoing, rel));
-
         List<String> incoming = new ArrayList<>();
-        node.getRelationships(Direction.INCOMING).iterator()
-                .forEachRemaining(rel -> AddDistinct(incoming, rel));
+
+       node.getRelationships(Direction.OUTGOING).iterator()
+                .forEachRemaining(rel -> printDegree(rel.getOtherNode(node)));
+
+//        node.getRelationships(Direction.INCOMING).iterator()
+//                .forEachRemaining(rel -> AddDistinct(incoming, rel));
 
         return Stream.of(new RelationshipTypes2(incoming, outgoing));
+    }
+
+    /**
+     * Prints degree of given node to console
+     *
+     * @param node the node which we should print degree of
+     */
+    private void printDegree(Node node){
+        System.out.println(node.getDegree());
     }
 
     /**
