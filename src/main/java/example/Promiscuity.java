@@ -47,6 +47,26 @@ public class Promiscuity {
     }
 
     /**
+     * This procedure takes a Node and gets the relationships going in and out of it
+     *
+     * @param node  The node to get the relationships for
+     * @return  A RelationshipTypes instance with the relations (incoming and outgoing) for a given node.
+     */
+    @Procedure(value = "example.promiscuityPath")
+    @Description("Get the different relationships going in and out of a node.")
+    public Stream<RelationshipTypes2> promiscuityPath(@Name("node") Node node) {
+        List<String> outgoing = new ArrayList<>();
+       node.getRelationships(Direction.OUTGOING).iterator()
+                .forEachRemaining(rel -> AddDistinct(outgoing, rel));
+
+        List<String> incoming = new ArrayList<>();
+        node.getRelationships(Direction.INCOMING).iterator()
+                .forEachRemaining(rel -> AddDistinct(incoming, rel));
+
+        return Stream.of(new RelationshipTypes2(incoming, outgoing));
+    }
+
+    /**
      * Adds the distinct type of a relationship to the given List<String>
      *
      * @param list  the list to add the distinct relationship type to
@@ -96,6 +116,17 @@ public class Promiscuity {
         public List<String> incoming;
 
         public RelationshipTypes(List<String> incoming, List<String> outgoing) {
+            this.outgoing = outgoing;
+            this.incoming = incoming;
+        }
+    }
+
+    public static class RelationshipTypes2 {
+        // These records contain two lists of distinct relationship types going in and out of a Node.
+        public List<String> outgoing;
+        public List<String> incoming;
+
+        public RelationshipTypes2(List<String> incoming, List<String> outgoing) {
             this.outgoing = outgoing;
             this.incoming = incoming;
         }
