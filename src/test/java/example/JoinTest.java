@@ -20,6 +20,7 @@ public class JoinTest {
 
     @BeforeAll
     void initializeNeo4j() {
+        System.out.println("Hello");
         this.embeddedDatabaseServer = Neo4jBuilders.newInProcessBuilder()
                 .withDisabledServer()
                 .withFunction(Join.class)
