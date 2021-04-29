@@ -13,6 +13,8 @@ import org.neo4j.procedure.Procedure;
 import java.util.*;
 import java.util.stream.Stream;
 
+import static java.lang.Math.max;
+
 //import Comparator.comparingInt;
 
 /**
@@ -39,8 +41,8 @@ public class Promiscuity {
     @Description("Get the different relationships going in and out of a node.")
     public Stream<Output> promiscuityPath(
             @Name("sourceNode") Node sourceNode,
-            @Name("tailNode") Node tailNode) {
-        int k = 2;
+            @Name("tailNode") Node tailNode,
+            @Name("k") Number k) {
         PriorityQueue<Entry> priorityQueue = new PriorityQueue<>();
 
        sourceNode.getRelationships().iterator()
@@ -61,6 +63,20 @@ public class Promiscuity {
        }
 
         return new ArrayList<Output>().stream();
+    }
+
+    private int promiscuity_subroutine(Node n, Node tail, int depth, int k, int path_score, PriorityQueue<Entry> priorityQueue){
+        int updated_path_score = max(n.getDegree(), path_score);
+        if(depth==k){
+            boolean tail_neighbor = n.getRelationships().iterator().anyMatch(rel -> rel.getOtherNode(n).equals(tail));
+            if(tail_neighbor) return updated_path_score;
+            else return -1;
+        } else{
+            node.getRelationships().iterator()
+                    .forEachRemaining(rel -> AddToQueue(priorityQueue, rel.getOtherNode(node), updated_path_score, depth));
+        }
+
+        return -1;
     }
 
     /**
