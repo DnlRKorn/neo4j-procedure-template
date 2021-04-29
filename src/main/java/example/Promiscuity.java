@@ -14,6 +14,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+import java.util.PriorityQueue;
+
+//import Comparator.comparingInt;
 
 /**
  * This is an example showing how you could expose Neo4j's full text indexes as
@@ -90,5 +93,27 @@ public class Promiscuity {
             this.outgoing = outgoing;
             this.incoming = incoming;
         }
+    }
+
+    public static class Entry implements Comparable<Entry>{
+        // These entries contain information we need about nodes stashed on our priority queue.
+        public int degree;
+        public int path_score;
+        public int depth;
+        public Node node;
+
+
+        public Entry(int degree, int path_score, int depth, Node node) {
+            this.degree = degree;
+            this.path_score = path_score;
+            this.depth = depth;
+            this.node = node;
+        }
+
+        @java.lang.Override
+        public int compareTo(Entry o) {
+            return this.degree - o.degree;
+        }
+
     }
 }

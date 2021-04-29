@@ -6,6 +6,8 @@ import org.neo4j.harness.Neo4j;
 import org.neo4j.harness.Neo4jBuilders;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertEquals;
+
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class PromiscuityTests {
@@ -54,5 +56,18 @@ public class PromiscuityTests {
             assertThat(record.get("incoming").asList(x -> x.asString())).containsOnly();
             assertThat(record.get("outgoing").asList(x -> x.asString())).containsOnly();
         }
+    }
+
+    /**
+     * We should only get distinct values from our procedure
+     */
+    @Test
+    public void queueEntryTest() {
+        final Promiscuity.Entry degree_5 = new Promiscuity.Entry(5,2,3,null);
+        final Promiscuity.Entry degree_10 = new Promiscuity.Entry(10,2,3,null);
+
+        assertEquals(degree_5.compareTo(degree_10),5);
+//        assertThat(degree_5.compareTo(degree_10)).is(5);
+        //assertThat(record.get("outgoing").asList(x -> x.asString())).containsOnly();
     }
 }
