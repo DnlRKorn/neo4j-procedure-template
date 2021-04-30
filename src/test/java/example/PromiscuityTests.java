@@ -9,11 +9,9 @@ import org.neo4j.driver.Session;
 import org.neo4j.harness.Neo4j;
 import org.neo4j.harness.Neo4jBuilders;
 
-import org.junit.Assert;
-
-
-import java.util.List;
 import java.util.PriorityQueue;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -30,12 +28,12 @@ public class PromiscuityTests {
                 .withProcedure(Promiscuity.class)
                 .build();
 
-        this.driver = GraphDatabase.driver(embeddedDatabaseServer.boltURI(), driverConfig);
+        driver = GraphDatabase.driver(embeddedDatabaseServer.boltURI(), driverConfig);
     }
 
     @AfterAll
     void closeDriver(){
-        this.driver.close();
+        driver.close();
         this.embeddedDatabaseServer.close();
     }
 
@@ -79,13 +77,12 @@ public class PromiscuityTests {
 
             Record record = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL " +
                     "promiscuity.promiscuityScore(s,t,1) YIELD promiscuity_score RETURN promiscuity_score").single();
-            Assert.assertEquals(record.get("promiscuity_score").asInt(),3);
+            assertEquals(record.get("promiscuity_score").asInt(),3);
 
             //Remove the connection from degree3 and tail. Expect new promiscuity_score of graph to be 5.
             session.run("MATCH (n:Node {name:'degree3'})-[r:Edge]->(t:Node {name:'tail'}) DELETE r");
-            record = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL " +
-                    "promiscuity.promiscuityScore(s,t,1) YIELD promiscuity_score RETURN promiscuity_score").single();
-            Assert.assertEquals(record.get("promiscuity_score").asInt(),5);
+            record = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL promiscuity.promiscuityScore(s,t,1) YIELD promiscuity_score RETURN promiscuity_score").single();
+            assertEquals(record.get("promiscuity_score").asInt(),5);
 
         }
     }
@@ -101,9 +98,9 @@ public class PromiscuityTests {
 
         final Promiscuity.Entry degree_5_equal_test = new Promiscuity.Entry(5,6,8,null);
 
-        Assert.assertTrue(degree_10.compareTo(degree_5) > 0);
-        Assert.assertTrue(degree_5.compareTo(degree_10) < 0);
-        Assert.assertEquals(degree_5_equal_test.compareTo(degree_5),0);
+        assertTrue(degree_10.compareTo(degree_5) > 0);
+        assertTrue(degree_5.compareTo(degree_10) < 0);
+        assertEquals(degree_5_equal_test.compareTo(degree_5),0);
 
     }
 
@@ -126,10 +123,10 @@ public class PromiscuityTests {
         Promiscuity.Entry queue_third = priorityQueue.poll();
         Promiscuity.Entry queue_fourth = priorityQueue.poll();
 
-        Assert.assertEquals(degree_1,queue_first); //Lowest degree should be first dequeued.
-        Assert.assertEquals(degree_5,queue_second);
-        Assert.assertEquals(degree_10,queue_third);
-        Assert.assertEquals(null,queue_fourth);
+        assertEquals(degree_1,queue_first); //Lowest degree should be first dequeued.
+        assertEquals(degree_5,queue_second);
+        assertEquals(degree_10,queue_third);
+        assertNull(queue_fourth);
 
     }
 
