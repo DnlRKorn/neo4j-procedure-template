@@ -72,10 +72,6 @@ public class Promiscuity {
     private int promiscuity_subroutine(Node node, Node tail, int depth, int k, int path_score, PriorityQueue<Entry> priorityQueue) {
         int updated_path_score = max(node.getDegree(), path_score);
         if (depth == k) {
-            //boolean tail_neighbor = false;
-            //for (Relationship rel :  node.getRelationships() ){
-            //    tail_neighbor |= rel.getOtherNode(node).equals(tail);
-            //}
             boolean tail_neighbor = StreamSupport.stream(node.getRelationships().spliterator(), false)
                     .anyMatch(rel -> rel.getOtherNode(node).equals(tail));
             if (tail_neighbor) return updated_path_score;
