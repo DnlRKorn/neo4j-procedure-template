@@ -1,8 +1,6 @@
 package example;
 
-import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.Node;
-import org.neo4j.graphdb.Path;
 import org.neo4j.graphdb.Relationship;
 import org.neo4j.logging.Log;
 import org.neo4j.procedure.Context;
@@ -10,12 +8,16 @@ import org.neo4j.procedure.Description;
 import org.neo4j.procedure.Name;
 import org.neo4j.procedure.Procedure;
 
-import java.util.*;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.PriorityQueue;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static java.lang.Math.max;
+import static java.lang.Math.min;
 
-//import Comparator.comparingInt;
 
 /**
  * This is an example showing how you could expose Neo4j's full text indexes as
@@ -28,52 +30,57 @@ public class Promiscuity {
     @Context
     public Log log;
 
-//* @param k length of paths. If k=2 s->v1->v2->t would be a valid path.
-//* @param k length of paths. If k=2 s->v1->v2->t would be a valid path.
     /**
      * This procedure takes a Node and gets the relationships going in and out of it
      * @param sourceNode  node to start promiscuity search from
      * @param tailNode node to end promiscuity search at
-
+     * @param k_input length of paths. If k=2 s->v1->v2->t would be a valid path. Must be of type Number to satisfy Neo4j.
      * @return  A RelationshipTypes instance with the relations (incoming and outgoing) for a given node.
      */
-    @Procedure(value = "example.promiscuityPath")
-    @Description("Get the different relationships going in and out of a node.")
-    public Stream<Output> promiscuityPath(
+    @Procedure(value = "promiscuity.promiscuityScore")
+    @Description("Get the lowest promiscuity score of paths of length k connecting a source and tail node.")
+    public Stream<Output> promiscuityScore(
             @Name("sourceNode") Node sourceNode,
             @Name("tailNode") Node tailNode,
-            @Name("k") Number k) {
+            @Name("k") Number k_input) {
+        int k = k_input.intValue();
         PriorityQueue<Entry> priorityQueue = new PriorityQueue<>();
 
-       sourceNode.getRelationships().iterator()
+        //We cannot use the promiscuity_subroutine to enqueue the neighbors of the source node, as the degree of the
+        // source node has no effect on the promiscuity score of paths.
+        sourceNode.getRelationships().iterator()
                 .forEachRemaining(rel -> AddToQueue(priorityQueue,rel.getOtherNode(sourceNode),0,1));
 
-       int best_score = Integer.MAX_VALUE;
-       while(!priorityQueue.isEmpty()){
-           Entry head = priorityQueue.poll();
-           Node node = head.node;
-           if(head.degree >= best_score){
-               return Stream.of(new Output(best_score));
-           }
-           if(head.depth<=1) {
-               node.getRelationships().iterator()
-                       .forEachRemaining(rel -> AddToQueue(priorityQueue, rel.getOtherNode(node), 0, head.depth + 1));
-           }
+        int best_score = Integer.MAX_VALUE;
+        while(!priorityQueue.isEmpty()){
+            Entry head = priorityQueue.poll();
+            Node node = head.node;
+            if(head.degree >= best_score){
+                return Stream.of(new Output(best_score));
+            }
+            int x = promiscuity_subroutine(node, tailNode, head.depth, k, head.path_score, priorityQueue);
+            if(x!=-1){
+                best_score = min(best_score,x);
+            }
+        }
 
-       }
-
-        return new ArrayList<Output>().stream();
+       return new ArrayList<Output>().stream();
     }
 
-    private int promiscuity_subroutine(Node n, Node tail, int depth, int k, int path_score, PriorityQueue<Entry> priorityQueue){
-        int updated_path_score = max(n.getDegree(), path_score);
+    private int promiscuity_subroutine(Node node, Node tail, int depth, int k, int path_score, PriorityQueue<Entry> priorityQueue){
+        int updated_path_score = max(node.getDegree(), path_score);
         if(depth==k){
-            boolean tail_neighbor = n.getRelationships().iterator().anyMatch(rel -> rel.getOtherNode(n).equals(tail));
+            //boolean tail_neighbor = false;
+            //for (Relationship rel :  node.getRelationships() ){
+            //    tail_neighbor |= rel.getOtherNode(node).equals(tail);
+            //}
+            boolean tail_neighbor = StreamSupport.stream(node.getRelationships().spliterator(),false)
+                    .anyMatch(rel -> rel.getOtherNode(node).equals(tail));
             if(tail_neighbor) return updated_path_score;
             else return -1;
         } else{
             node.getRelationships().iterator()
-                    .forEachRemaining(rel -> AddToQueue(priorityQueue, rel.getOtherNode(node), updated_path_score, depth));
+                    .forEachRemaining(rel -> AddToQueue(priorityQueue, rel.getOtherNode(node), updated_path_score, depth +1));
         }
 
         return -1;

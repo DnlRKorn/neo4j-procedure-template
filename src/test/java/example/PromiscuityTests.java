@@ -47,41 +47,52 @@ public class PromiscuityTests {
     }
 
     /**
-     * We should only get distinct values from our procedure
+     * Creates a graph with three pathways from a source to a tail node. One pathway through a node with degree 3, one
+     * through a node with degree 5, and one through node with degree 10. Runs promiscuity.promiscuityScore and tests
+     * output.
      */
     @Test
-    public void promiscuityTest() {
-//        final String expectedIncoming = "INCOMING";
-//        final String expectedOutgoing = "OUTGOING";
-        System.out.println(String.format("CREATE p=(s:Node {name:'degree3'})-[r:Edge]->(a:Node {name:'a%d'})",1));
+    public void promiscuityScoreTest() {
+
         try(Session session = driver.session()) {
             session.run("CREATE (s:Node {name:'source'})");
             session.run("CREATE (t:Node {name:'tail'})");
-            //System.out.println(session.run("MATCH (n) RETURN COUNT(DISTINCT(n))").single());
-            session.run("MATCH (n {name:'source'}) CREATE p=(n)-[r:Edge]->(degree3:Node {name:'degree3'})");
-            //System.out.println(session.run("MATCH (n) RETURN COUNT(DISTINCT(n))").single());
-            for(int i=0;i<2;i++){
+
+            session.run("MATCH (s {name:'source'}) CREATE p=(s)-[r:Edge]->(degree3:Node {name:'degree3'})");
+            session.run("MATCH (n:Node {name:'degree3'}), (t:Node {name:'tail'}) CREATE (n)-[r:Edge]->(t)");
+            //We want "degree3" to have node.degree() == 3. Has a 2 edges to source and tail, create 3 - 2 additional
+            // connections.
+            for(int i=0;i<3-2;i++){
                 session.run(String.format("MATCH (n:Node {name:'degree3'}) CREATE p=(n)-[r:Edge]->(a:Node {name:'a%d'})",i));
                 //System.out.println(session.run("MATCH (n) RETURN COUNT(DISTINCT(n))").single());
             }
-            session.run("MATCH (n:Node {name:'source'}) CREATE p=(n)-[r:Edge]->(degree5:Node {name:'degree5'})");
-            for(int i=0;i<4;i++){
+            session.run("MATCH (s:Node {name:'source'}) CREATE p=(s)-[r:Edge]->(degree5:Node {name:'degree5'})");
+            session.run("MATCH (n:Node {name:'degree5'}), (t:Node {name:'tail'}) CREATE (n)-[r:Edge]->(t)");
+            for(int i=0;i<5-2;i++){
                 session.run(String.format("MATCH (n:Node {name:'degree5'}) CREATE p=(n)-[r:Edge]->(a:Node {name:'b%d'})",i));
             }
-            session.run("MATCH (n:Node {name:'source'})  CREATE p=(n)-[r:Edge]->(degree10:Node {name:'degree10'})");
-            for(int i=0;i<9;i++){
+            session.run("MATCH (s:Node {name:'source'})  CREATE p=(s)-[r:Edge]->(degree10:Node {name:'degree10'})");
+            session.run("MATCH (n:Node {name:'degree10'}), (t:Node {name:'tail'}) CREATE (n)-[r:Edge]->(t)");
+            for(int i=0;i<10-2;i++){
                 session.run(String.format("MATCH (n:Node {name:'degree10'}) CREATE p=(n)-[r:Edge]->(a:Node {name:'c%d'})",i));
             }
 
-            List<Record> records = session.run("MATCH (n {name:'source'})-[r]->(m) RETURN m.name,SIZE((m)--())").list();
-            Record recordx = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) RETURN s.name, t.name").single();
-            List<Record> records1 = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL example.promiscuityPath(s,t) YIELD promiscuity_score RETURN promiscuity_score").list();
+            Record record = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL " +
+                    "promiscuity.promiscuityScore(s,t,1) YIELD promiscuity_score RETURN promiscuity_score").single();
+            Assert.assertEquals(record.get("promiscuity_score").asInt(),3);
+
+            //Remove the connection from degree3 and tail. Expect new promiscuity_score of graph to be 5.
+            session.run("MATCH (n:Node {name:'degree3'})-[r:Edge]->(t:Node {name:'tail'}) DELETE r");
+            record = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL " +
+                    "promiscuity.promiscuityScore(s,t,1) YIELD promiscuity_score RETURN promiscuity_score").single();
+            Assert.assertEquals(record.get("promiscuity_score").asInt(),5);
 
         }
     }
 
     /**
-     * Tests comparator methods
+     * Tests comparator methods of Entry nodes which we leverage in the priority queue. Should leverage degree as
+     * key for comparison.
      */
     @Test
     public void queueEntryTest() {
