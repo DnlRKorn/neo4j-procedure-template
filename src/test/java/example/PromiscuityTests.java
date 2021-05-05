@@ -2,15 +2,13 @@ package example;
 
 import org.apache.commons.collections.IteratorUtils;
 import org.junit.jupiter.api.*;
+import org.neo4j.driver.*;
 import org.neo4j.driver.Record;
-import org.neo4j.driver.Config;
-import org.neo4j.driver.Driver;
-import org.neo4j.driver.GraphDatabase;
-import org.neo4j.driver.Session;
+import org.neo4j.driver.internal.InternalNode;
 import org.neo4j.driver.internal.InternalPath;
 import org.neo4j.driver.internal.value.PathValue;
+import org.neo4j.driver.types.Path;
 import org.neo4j.graphdb.Node;
-import org.neo4j.graphdb.Path;
 import org.neo4j.harness.Neo4j;
 import org.neo4j.harness.Neo4jBuilders;
 
@@ -131,22 +129,125 @@ public class PromiscuityTests {
             Record record = record_list.get(0);
 
             assertEquals(record.get("promiscuity_score").asInt(),3);
-            InternalPath p = (InternalPath) record.get("promiscuity_path").asPath();
-            Object[] l = IteratorUtils.toArray(p.nodes().iterator());
-            Node aa = (Node) l[1];
-            assertEquals(aa.getProperty("name"),"degree3");
+            Path p = record.get("promiscuity_path").asPath();
+            Object[] nodeArray = IteratorUtils.toArray(p.nodes().iterator());
+            //Confirm the nodes of the path ( s -> x -> t ) are in the order we expect.
+            assertEquals(((InternalNode) nodeArray[0]).get("name").asString(),"source");
+            assertEquals(((InternalNode) nodeArray[1]).get("name").asString(),"degree3");
+            assertEquals(((InternalNode) nodeArray[2]).get("name").asString(),"tail");
+            assertEquals(nodeArray.length,3);
 
-        //    assertEquals(record.get("promiscuity_score").asInt(),5);
-       //     PathValue p = (PathValue) record.get("promiscuity_path");
-       //     System.out.println(p.asPath().length());
+            record = record_list.get(1);
+
+            assertEquals(record.get("promiscuity_score").asInt(),5);
+            p = record.get("promiscuity_path").asPath();
+            nodeArray = IteratorUtils.toArray(p.nodes().iterator());
+            assertEquals(((InternalNode) nodeArray[0]).get("name").asString(),"source");
+            assertEquals(((InternalNode) nodeArray[1]).get("name").asString(),"degree5");
+            assertEquals(((InternalNode) nodeArray[2]).get("name").asString(),"tail");
+            assertEquals(nodeArray.length,3);
+
+            record = record_list.get(2);
+
+            assertEquals(record.get("promiscuity_score").asInt(),10);
+            p = record.get("promiscuity_path").asPath();
+            nodeArray = IteratorUtils.toArray(p.nodes().iterator());
+            assertEquals(((InternalNode) nodeArray[0]).get("name").asString(),"source");
+            assertEquals(((InternalNode) nodeArray[1]).get("name").asString(),"degree10");
+            assertEquals(((InternalNode) nodeArray[2]).get("name").asString(),"tail");
+            assertEquals(nodeArray.length,3);
+
+            assertEquals(record_list.size(),3);
+
+            //There should only be three paths possible to find, even though we request up to 1000.
+            record_list = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL promiscuity.promiscuityPath(s,t,1,1000) YIELD promiscuity_score, promiscuity_path RETURN promiscuity_score, promiscuity_path").list();
+            assertEquals(record_list.size(),3);
+
         }
     }
 
-    private Node getSecondNode(Path p){
-        Iterator<Node> nodeIterator = p.nodes().iterator();
-        nodeIterator.next();
-        return nodeIterator.next();
+    @Test
+    public void promiscuityPathTest_kEquals2() {
+
+        try(Session session = driver.session()) {
+            session.run("CREATE (s:Node {name:'source'})");
+            session.run("CREATE (i:Node {name:'intermediate'})");
+            session.run("CREATE (t:Node {name:'tail'})");
+
+            session.run("MATCH (s {name:'source'}) CREATE p=(s)-[r:Edge]->(degree3:Node {name:'degree3'})");
+            session.run("MATCH (n:Node {name:'degree3'}), (i:Node {name:'intermediate'}) CREATE (n)-[r:Edge]->(i)");
+            //We want "degree3" to have node.degree() == 3. Has a 2 edges to source and tail, create 3 - 2 additional
+            // connections.
+            for(int i=0;i<3-2;i++){
+                session.run(String.format("MATCH (n:Node {name:'degree3'}) CREATE p=(n)-[r:Edge]->(a:Node {name:'a%d'})",i));
+                //System.out.println(session.run("MATCH (n) RETURN COUNT(DISTINCT(n))").single());
+            }
+            session.run("MATCH (s:Node {name:'source'}) CREATE p=(s)-[r:Edge]->(degree5:Node {name:'degree5'})");
+            session.run("MATCH (n:Node {name:'degree5'}), (i:Node {name:'intermediate'}) CREATE (n)-[r:Edge]->(i)");
+            for(int i=0;i<5-2;i++){
+                session.run(String.format("MATCH (n:Node {name:'degree5'}) CREATE p=(n)-[r:Edge]->(a:Node {name:'b%d'})",i));
+            }
+            session.run("MATCH (s:Node {name:'source'})  CREATE p=(s)-[r:Edge]->(degree10:Node {name:'degree10'})");
+            session.run("MATCH (n:Node {name:'degree10'}), (i:Node {name:'intermediate'}) CREATE (n)-[r:Edge]->(i)");
+            for(int i=0;i<10-2;i++){
+                session.run(String.format("MATCH (n:Node {name:'degree10'}) CREATE p=(n)-[r:Edge]->(a:Node {name:'c%d'})",i));
+            }
+
+            session.run("MATCH (i:Node {name:'intermediate'}),(t:Node {name:'tail'}) CREATE (i)-[r:Edge]->(t)");
+
+            List<Record> record_list = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL promiscuity.promiscuityPath(s,t,2,3) YIELD promiscuity_score, promiscuity_path RETURN promiscuity_score, promiscuity_path").list();
+            Record record = record_list.get(0);
+
+            assertEquals(record.get("promiscuity_score").asInt(),4);
+            Path p = record.get("promiscuity_path").asPath();
+            Object[] nodeArray = IteratorUtils.toArray(p.nodes().iterator());
+            //Confirm the nodes of the path ( s -> x -> t ) are in the order we expect.
+            assertEquals(((InternalNode) nodeArray[0]).get("name").asString(),"source");
+            assertEquals(((InternalNode) nodeArray[1]).get("name").asString(),"degree3");
+            assertEquals(((InternalNode) nodeArray[2]).get("name").asString(),"intermediate");
+            assertEquals(((InternalNode) nodeArray[3]).get("name").asString(),"tail");
+            assertEquals(nodeArray.length,4);
+
+            record = record_list.get(1);
+
+            assertEquals(record.get("promiscuity_score").asInt(),5);
+            p = record.get("promiscuity_path").asPath();
+            nodeArray = IteratorUtils.toArray(p.nodes().iterator());
+            assertEquals(((InternalNode) nodeArray[0]).get("name").asString(),"source");
+            assertEquals(((InternalNode) nodeArray[1]).get("name").asString(),"degree5");
+            assertEquals(((InternalNode) nodeArray[2]).get("name").asString(),"intermediate");
+            assertEquals(((InternalNode) nodeArray[3]).get("name").asString(),"tail");
+            assertEquals(nodeArray.length,4);
+
+            record = record_list.get(2);
+
+            assertEquals(record.get("promiscuity_score").asInt(),10);
+            p = record.get("promiscuity_path").asPath();
+            nodeArray = IteratorUtils.toArray(p.nodes().iterator());
+            assertEquals(((InternalNode) nodeArray[0]).get("name").asString(),"source");
+            assertEquals(((InternalNode) nodeArray[1]).get("name").asString(),"degree10");
+            assertEquals(((InternalNode) nodeArray[2]).get("name").asString(),"intermediate");
+            assertEquals(((InternalNode) nodeArray[3]).get("name").asString(),"tail");
+            assertEquals(nodeArray.length,4);
+
+            assertEquals(record_list.size(),3);
+
+            //There should only be three paths possible to find, even though we request up to 1000.
+            record_list = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL promiscuity.promiscuityPath(s,t,2,1000) YIELD promiscuity_score, promiscuity_path RETURN promiscuity_score, promiscuity_path").list();
+            assertEquals(record_list.size(),3);
+
+
+            for(int i=0;i<15-4;i++){
+                session.run(String.format("MATCH (i:Node {name:'intermediate'}) CREATE p=(i)-[r:Edge]->(a:Node {name:'d%d'})",i));
+            }
+
+            record_list = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL promiscuity.promiscuityPath(s,t,2,3) YIELD promiscuity_score, promiscuity_path RETURN promiscuity_score, promiscuity_path").list();
+            for(  Record r  : record_list ) {
+                assertEquals(r.get("promiscuity_score").asInt(),15);
+            }
+        }
     }
+
     /**
      * Tests comparator methods of Entry nodes which we leverage in the priority queue. Should leverage degree as
      * key for comparison.
