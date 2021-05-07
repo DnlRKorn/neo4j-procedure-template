@@ -171,6 +171,49 @@ public class Promiscuity {
     }
 
     /**
+     * This procedure takes a source Node, a tail Node, and a length parameter k.
+     *
+     * @param sourceNode node to start promiscuity search from
+     * @param tailNode   node to end promiscuity search at
+     * @param k_input    length of paths. If k=2 s->v1->v2->t would be a valid path. Must be of type Number to satisfy Neo4j.
+     * @return An Output instance with the lowest scoring promiscuity score fo the pathway.
+     */
+    @Procedure(value = "promiscuity.naivePromiscuityScore")
+    @Description("Get the lowest promiscuity score of paths of length k connecting a source and tail node.")
+    public Stream<Output> naivePromiscuityScore(
+            @Name("sourceNode") Node sourceNode,
+            @Name("tailNode") Node tailNode,
+            @Name("k") Number k_input) {
+        ArrayList<Output> result = new ArrayList<>();
+        int k = k_input.intValue();
+        Queue<Entry> queue = new LinkedList<>();
+
+        //We cannot use the promiscuity_subroutine to enqueue the neighbors of the source node, as the degree of the
+        // source node has no effect on the promiscuity score of paths.
+        sourceNode.getRelationships().iterator()
+                .forEachRemaining(rel -> AddToQueue(queue, rel.getOtherNode(sourceNode), 0, 1));
+
+        int best_score = Integer.MAX_VALUE;
+        while (!queue.isEmpty()) {
+            Entry head = queue.poll();
+            Node node = head.node;
+            int updated_path_score = max(node.getDegree(), head.path_score);
+            if (head.depth == k) {
+                boolean tail_neighbor = StreamSupport.stream(node.getRelationships().spliterator(), false)
+                        .anyMatch(rel -> rel.getOtherNode(node).equals(tailNode));
+                if(tail_neighbor) best_score = min(best_score,updated_path_score);
+            }
+            else{
+                sourceNode.getRelationships().iterator()
+                        .forEachRemaining(rel -> AddToQueue(queue, rel.getOtherNode(node), updated_path_score, head.depth+1));
+            }
+        }
+        result.add(new Output(best_score));
+
+        return result.stream();
+    }
+
+    /**
      * This procedure serves to
      **/
     private int promiscuityPath_subroutine(PathEntry entry, Node tail, int k, PriorityQueue<PathEntry> priorityQueue) {
@@ -194,7 +237,7 @@ public class Promiscuity {
      * @param priorityQueue the queue which we are adding the Entry to.
      * @param node          the node which we should create Entry for and append to queue.
      */
-    private void AddToQueue(PriorityQueue<Entry> priorityQueue, Node node, int path_score, int depth) {
+    private void AddToQueue(Queue<Entry> priorityQueue, Node node, int path_score, int depth) {
         Entry e = new Entry(node.getDegree(), path_score, depth, node);
         priorityQueue.add(e);
     }

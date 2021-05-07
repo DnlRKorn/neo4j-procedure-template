@@ -59,30 +59,35 @@ public class PromiscuityTests {
     public void promiscuityScoreTest() {
 
         try(Session session = driver.session()) {
-            session.run("CREATE (s:Node {name:'source'})");
-            session.run("CREATE (t:Node {name:'tail'})");
-
-            session.run("MATCH (s {name:'source'}) CREATE p=(s)-[r:Edge]->(degree3:Node {name:'degree3'})");
-            session.run("MATCH (n:Node {name:'degree3'}), (t:Node {name:'tail'}) CREATE (n)-[r:Edge]->(t)");
-            //We want "degree3" to have node.degree() == 3. Has a 2 edges to source and tail, create 3 - 2 additional
-            // connections.
-            for(int i=0;i<3-2;i++){
-                session.run(String.format("MATCH (n:Node {name:'degree3'}) CREATE p=(n)-[r:Edge]->(a:Node {name:'a%d'})",i));
-                //System.out.println(session.run("MATCH (n) RETURN COUNT(DISTINCT(n))").single());
-            }
-            session.run("MATCH (s:Node {name:'source'}) CREATE p=(s)-[r:Edge]->(degree5:Node {name:'degree5'})");
-            session.run("MATCH (n:Node {name:'degree5'}), (t:Node {name:'tail'}) CREATE (n)-[r:Edge]->(t)");
-            for(int i=0;i<5-2;i++){
-                session.run(String.format("MATCH (n:Node {name:'degree5'}) CREATE p=(n)-[r:Edge]->(a:Node {name:'b%d'})",i));
-            }
-            session.run("MATCH (s:Node {name:'source'})  CREATE p=(s)-[r:Edge]->(degree10:Node {name:'degree10'})");
-            session.run("MATCH (n:Node {name:'degree10'}), (t:Node {name:'tail'}) CREATE (n)-[r:Edge]->(t)");
-            for(int i=0;i<10-2;i++){
-                session.run(String.format("MATCH (n:Node {name:'degree10'}) CREATE p=(n)-[r:Edge]->(a:Node {name:'c%d'})",i));
-            }
+            buildTestGraph(session);
 
             Record record = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL " +
                     "promiscuity.promiscuityScore(s,t,1) YIELD promiscuity_score RETURN promiscuity_score").single();
+            assertEquals(record.get("promiscuity_score").asInt(),3);
+
+            //Remove the connection from degree3 and tail. Expect new promiscuity_score of graph to be 5.
+            session.run("MATCH (n:Node {name:'degree3'})-[r:Edge]->(t:Node {name:'tail'}) DELETE r");
+            record = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL promiscuity.promiscuityScore(s,t,1) YIELD promiscuity_score RETURN promiscuity_score").single();
+            assertEquals(record.get("promiscuity_score").asInt(),5);
+
+        }
+    }
+
+    /**
+     * Creates a graph with three pathways from a source to a tail node. One pathway through a node with degree 3, one
+     * through a node with degree 5, and one through node with degree 10. Runs promiscuity.naivePromiscuityScore and
+     * tests output.
+     */
+    @Test
+    public void naivePromiscuityScoreTest() {
+
+        try(Session session = driver.session()) {
+            buildTestGraph(session);
+
+            List<Record> records = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL " +
+                    "promiscuity.naivePromiscuityScore(s,t,1) YIELD promiscuity_score RETURN promiscuity_score").list();
+            assertEquals(records.size(),1);
+            Record record = records.get(0);
             assertEquals(record.get("promiscuity_score").asInt(),3);
 
             //Remove the connection from degree3 and tail. Expect new promiscuity_score of graph to be 5.
@@ -97,34 +102,8 @@ public class PromiscuityTests {
     public void promiscuityPathTest() {
 
         try(Session session = driver.session()) {
-            session.run("CREATE (s:Node {name:'source'})");
-            session.run("CREATE (t:Node {name:'tail'})");
+            buildTestGraph(session);
 
-            session.run("MATCH (s {name:'source'}) CREATE p=(s)-[r:Edge]->(degree3:Node {name:'degree3'})");
-            session.run("MATCH (n:Node {name:'degree3'}), (t:Node {name:'tail'}) CREATE (n)-[r:Edge]->(t)");
-            //We want "degree3" to have node.degree() == 3. Has a 2 edges to source and tail, create 3 - 2 additional
-            // connections.
-            for(int i=0;i<3-2;i++){
-                session.run(String.format("MATCH (n:Node {name:'degree3'}) CREATE p=(n)-[r:Edge]->(a:Node {name:'a%d'})",i));
-                //System.out.println(session.run("MATCH (n) RETURN COUNT(DISTINCT(n))").single());
-            }
-            session.run("MATCH (s:Node {name:'source'}) CREATE p=(s)-[r:Edge]->(degree5:Node {name:'degree5'})");
-            session.run("MATCH (n:Node {name:'degree5'}), (t:Node {name:'tail'}) CREATE (n)-[r:Edge]->(t)");
-            for(int i=0;i<5-2;i++){
-                session.run(String.format("MATCH (n:Node {name:'degree5'}) CREATE p=(n)-[r:Edge]->(a:Node {name:'b%d'})",i));
-            }
-            session.run("MATCH (s:Node {name:'source'})  CREATE p=(s)-[r:Edge]->(degree10:Node {name:'degree10'})");
-            session.run("MATCH (n:Node {name:'degree10'}), (t:Node {name:'tail'}) CREATE (n)-[r:Edge]->(t)");
-            for(int i=0;i<10-2;i++){
-                session.run(String.format("MATCH (n:Node {name:'degree10'}) CREATE p=(n)-[r:Edge]->(a:Node {name:'c%d'})",i));
-            }
-
-//            Record record = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL " +
-//                    "promiscuity.promiscuityScore(s,t,1) YIELD promiscuity_score RETURN promiscuity_score").single();
-//            assertEquals(record.get("promiscuity_score").asInt(),3);
-
-            //Remove the connection from degree3 and tail. Expect new promiscuity_score of graph to be 5.
-            //session.run("MATCH (n:Node {name:'degree3'})-[r:Edge]->(t:Node {name:'tail'}) DELETE r");
             List<Record> record_list = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL promiscuity.promiscuityPath(s,t,1,3) YIELD promiscuity_score, promiscuity_path RETURN promiscuity_score, promiscuity_path").list();
             Record record = record_list.get(0);
 
@@ -166,34 +145,59 @@ public class PromiscuityTests {
         }
     }
 
+    /*
+    This procedure creates a simple graph in our neo4j session. In this graph are a node labeled source, a node labeled
+    tail, and three nodes which act as an intermediary path between source and tail (s->x->t). These three nodes have
+    differing degrees, indicated by their names. One has degree of 3, one has degree of 5, and one has degree of 10.
+     */
+    private void buildTestGraph(Session session){
+        session.run("CREATE (s:Node {name:'source'})");
+        session.run("CREATE (t:Node {name:'tail'})");
+
+        session.run("MATCH (s {name:'source'}) CREATE p=(s)-[r:Edge]->(degree3:Node {name:'degree3'})");
+        session.run("MATCH (n:Node {name:'degree3'}), (t:Node {name:'tail'}) CREATE (n)-[r:Edge]->(t)");
+        //We want "degree3" to have node.degree() == 3. Has a 2 edges to source and tail, create 3 - 2 additional
+        // connections.
+        for(int i=0;i<3-2;i++){
+            session.run(String.format("MATCH (n:Node {name:'degree3'}) CREATE p=(n)-[r:Edge]->(a:Node {name:'a%d'})",i));
+            //System.out.println(session.run("MATCH (n) RETURN COUNT(DISTINCT(n))").single());
+        }
+        session.run("MATCH (s:Node {name:'source'}) CREATE p=(s)-[r:Edge]->(degree5:Node {name:'degree5'})");
+        session.run("MATCH (n:Node {name:'degree5'}), (t:Node {name:'tail'}) CREATE (n)-[r:Edge]->(t)");
+        for(int i=0;i<5-2;i++){
+            session.run(String.format("MATCH (n:Node {name:'degree5'}) CREATE p=(n)-[r:Edge]->(a:Node {name:'b%d'})",i));
+        }
+        session.run("MATCH (s:Node {name:'source'})  CREATE p=(s)-[r:Edge]->(degree10:Node {name:'degree10'})");
+        session.run("MATCH (n:Node {name:'degree10'}), (t:Node {name:'tail'}) CREATE (n)-[r:Edge]->(t)");
+        for(int i=0;i<10-2;i++){
+            session.run(String.format("MATCH (n:Node {name:'degree10'}) CREATE p=(n)-[r:Edge]->(a:Node {name:'c%d'})",i));
+        }
+    }
+
     @Test
     public void promiscuityPathTest_kEquals2() {
 
         try(Session session = driver.session()) {
-            session.run("CREATE (s:Node {name:'source'})");
+            //Create our test graph. Remove the connection between our existing paths and the tail node. Introduce a new
+            // node which links our nodes to the tail node titled "intermediate". The resulting paths will look like
+            // s -> n -> i -> t.
+
+            buildTestGraph(session);
+
+            session.run("MATCH (n:Node {name:'degree3'})-[r:Edge]->(t:Node {name:'tail'}) DELETE r");
+            session.run("MATCH (n:Node {name:'degree5'})-[r:Edge]->(t:Node {name:'tail'}) DELETE r");
+            session.run("MATCH (n:Node {name:'degree10'})-[r:Edge]->(t:Node {name:'tail'}) DELETE r");
+
             session.run("CREATE (i:Node {name:'intermediate'})");
-            session.run("CREATE (t:Node {name:'tail'})");
-
-            session.run("MATCH (s {name:'source'}) CREATE p=(s)-[r:Edge]->(degree3:Node {name:'degree3'})");
-            session.run("MATCH (n:Node {name:'degree3'}), (i:Node {name:'intermediate'}) CREATE (n)-[r:Edge]->(i)");
-            //We want "degree3" to have node.degree() == 3. Has a 2 edges to source and tail, create 3 - 2 additional
-            // connections.
-            for(int i=0;i<3-2;i++){
-                session.run(String.format("MATCH (n:Node {name:'degree3'}) CREATE p=(n)-[r:Edge]->(a:Node {name:'a%d'})",i));
-                //System.out.println(session.run("MATCH (n) RETURN COUNT(DISTINCT(n))").single());
-            }
-            session.run("MATCH (s:Node {name:'source'}) CREATE p=(s)-[r:Edge]->(degree5:Node {name:'degree5'})");
-            session.run("MATCH (n:Node {name:'degree5'}), (i:Node {name:'intermediate'}) CREATE (n)-[r:Edge]->(i)");
-            for(int i=0;i<5-2;i++){
-                session.run(String.format("MATCH (n:Node {name:'degree5'}) CREATE p=(n)-[r:Edge]->(a:Node {name:'b%d'})",i));
-            }
-            session.run("MATCH (s:Node {name:'source'})  CREATE p=(s)-[r:Edge]->(degree10:Node {name:'degree10'})");
-            session.run("MATCH (n:Node {name:'degree10'}), (i:Node {name:'intermediate'}) CREATE (n)-[r:Edge]->(i)");
-            for(int i=0;i<10-2;i++){
-                session.run(String.format("MATCH (n:Node {name:'degree10'}) CREATE p=(n)-[r:Edge]->(a:Node {name:'c%d'})",i));
-            }
-
             session.run("MATCH (i:Node {name:'intermediate'}),(t:Node {name:'tail'}) CREATE (i)-[r:Edge]->(t)");
+
+
+            session.run("MATCH (n:Node {name:'degree3'}), (i:Node {name:'intermediate'}) CREATE (n)-[r:Edge]->(i)");
+            session.run("MATCH (n:Node {name:'degree5'}), (i:Node {name:'intermediate'}) CREATE (n)-[r:Edge]->(i)");
+            session.run("MATCH (n:Node {name:'degree10'}), (i:Node {name:'intermediate'}) CREATE (n)-[r:Edge]->(i)");
+
+
+
 
             List<Record> record_list = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL promiscuity.promiscuityPath(s,t,2,3) YIELD promiscuity_score, promiscuity_path RETURN promiscuity_score, promiscuity_path").list();
             Record record = record_list.get(0);
@@ -237,6 +241,8 @@ public class PromiscuityTests {
             assertEquals(record_list.size(),3);
 
 
+            //Increase the degree of the intermediate node to 15. This should force all paths to have a promiscuity
+            // score of 15.
             for(int i=0;i<15-4;i++){
                 session.run(String.format("MATCH (i:Node {name:'intermediate'}) CREATE p=(i)-[r:Edge]->(a:Node {name:'d%d'})",i));
             }
