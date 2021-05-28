@@ -66,7 +66,9 @@ public class Promiscuity {
                 best_score = min(best_score, x);
             }
         }
-
+        if(result.size()==0 & best_score < Integer.MAX_VALUE){
+            result.add(new Output(best_score));
+        }
         return result.stream();
     }
 
