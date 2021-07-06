@@ -32,6 +32,7 @@ public class PromiscuityTests {
         this.embeddedDatabaseServer = Neo4jBuilders.newInProcessBuilder()
                 .withDisabledServer()
                 .withProcedure(Promiscuity.class)
+                .withProcedure(PromiscuityQueueNodeCount.class)
                 .build();
 
         driver = GraphDatabase.driver(embeddedDatabaseServer.boltURI(), driverConfig);
@@ -297,5 +298,25 @@ public class PromiscuityTests {
 
     }
 
+
+    @Test
+    public void promiscuityQueueCountTest() {
+
+        try(Session session = driver.session()) {
+            buildTestGraph(session);
+
+            Record record = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL " +
+                    "promiscuityQueueCount.promiscuityScoreQueueCount(s,t,1) YIELD promiscuity_score, queue_count RETURN promiscuity_score, queue_count").single();
+            assertEquals(record.get("promiscuity_score").asInt(),3);
+//promiscuityQueueCount.promiscuityScoreQueueCount
+
+            //Remove the connection from degree3 and tail. Expect new promiscuity_score of graph to be 5.
+//            session.run("MATCH (n:Node {name:'degree3'})-[r:Edge]->(t:Node {name:'tail'}) DELETE r");
+ //           record = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL promiscuity.promiscuityScore(s,t,1) YIELD promiscuity_score RETURN promiscuity_score").single();
+  //
+            //          assertEquals(record.get("promiscuity_score").asInt(),5);
+
+        }
+    }
 
 }
