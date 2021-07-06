@@ -1,4 +1,4 @@
-package example;
+package promiscuity;
 
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Path;
@@ -83,7 +83,7 @@ public class Promiscuity {
      * exists between the provided node and the tail node. If we are not at the desired depth, we add all neighbors of
      * the provided node to the queue, with the depth value (path length) increased by one.
      **/
-    public static int promiscuityScore_subroutine(Node node, Node tail, int depth, int k, int path_score, PriorityQueue<Entry> priorityQueue) {
+    public int promiscuityScore_subroutine(Node node, Node tail, int depth, int k, int path_score, PriorityQueue<Entry> priorityQueue) {
         int updated_path_score = max(node.getDegree(), path_score);
         if (depth == k) {
             boolean tail_neighbor = StreamSupport.stream(node.getRelationships().spliterator(), false)
@@ -213,7 +213,7 @@ public class Promiscuity {
                 if(tail_neighbor) best_score = min(best_score,updated_path_score);
             }
             else{
-                sourceNode.getRelationships().iterator()
+                node.getRelationships().iterator()
                         .forEachRemaining(rel -> AddToQueue(queue, rel.getOtherNode(node), updated_path_score, head.depth+1));
             }
         }
@@ -249,7 +249,7 @@ public class Promiscuity {
      * @param priorityQueue the queue which we are adding the Entry to.
      * @param node          the node which we should create Entry for and append to queue.
      */
-    static void AddToQueue(Queue<Entry> priorityQueue, Node node, int path_score, int depth) {
+    void AddToQueue(Queue<Entry> priorityQueue, Node node, int path_score, int depth) {
         Entry e = new Entry(node.getDegree(), path_score, depth, node);
         priorityQueue.add(e);
     }
@@ -260,7 +260,7 @@ public class Promiscuity {
      * @param priorityQueue the queue which we are adding the Entry to.
      * @param node          the node which we should create Entry for and append to queue.
      */
-    static void AddToQueue(PriorityQueue<PathEntry> priorityQueue, Node node, int path_score, int depth, PathEntry parent) {
+    void AddToQueue(PriorityQueue<PathEntry> priorityQueue, Node node, int path_score, int depth, PathEntry parent) {
         PathEntry e = new PathEntry(node.getDegree(), path_score, depth, node, parent);
         priorityQueue.add(e);
     }

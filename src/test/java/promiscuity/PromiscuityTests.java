@@ -1,19 +1,14 @@
-package example;
+package promiscuity;
 
 import org.apache.commons.collections.IteratorUtils;
 import org.junit.jupiter.api.*;
 import org.neo4j.driver.*;
 import org.neo4j.driver.Record;
 import org.neo4j.driver.internal.InternalNode;
-import org.neo4j.driver.internal.InternalPath;
-import org.neo4j.driver.internal.value.PathValue;
 import org.neo4j.driver.types.Path;
-import org.neo4j.graphdb.Node;
 import org.neo4j.harness.Neo4j;
 import org.neo4j.harness.Neo4jBuilders;
 
-import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.PriorityQueue;
 
@@ -308,15 +303,22 @@ public class PromiscuityTests {
             Record record = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL " +
                     "promiscuityQueueCount.promiscuityScoreQueueCount(s,t,1) YIELD promiscuity_score, queue_count RETURN promiscuity_score, queue_count").single();
             assertEquals(record.get("promiscuity_score").asInt(),3);
-//promiscuityQueueCount.promiscuityScoreQueueCount
-
-            //Remove the connection from degree3 and tail. Expect new promiscuity_score of graph to be 5.
-//            session.run("MATCH (n:Node {name:'degree3'})-[r:Edge]->(t:Node {name:'tail'}) DELETE r");
- //           record = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL promiscuity.promiscuityScore(s,t,1) YIELD promiscuity_score RETURN promiscuity_score").single();
-  //
-            //          assertEquals(record.get("promiscuity_score").asInt(),5);
 
         }
     }
+
+    @Test
+    public void promiscuityNaiveQueueCountTest() {
+
+        try(Session session = driver.session()) {
+            buildTestGraph(session);
+
+            Record record = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL " +
+                    "promiscuityQueueCount.naivePromiscuityScoreQueueCount(s,t,1) YIELD promiscuity_score, queue_count RETURN promiscuity_score, queue_count").single();
+            assertEquals(record.get("promiscuity_score").asInt(),3);
+
+        }
+    }
+
 
 }

@@ -1,16 +1,14 @@
-package example;
+package promiscuity;
 
 import org.neo4j.graphdb.Node;
-import org.neo4j.graphdb.Relationship;
 import org.neo4j.logging.Log;
 import org.neo4j.procedure.Context;
 import org.neo4j.procedure.Description;
 import org.neo4j.procedure.Name;
 import org.neo4j.procedure.Procedure;
 
-import example.Promiscuity.*;
-import static example.Promiscuity.promiscuityScore_subroutine;
-import static example.Promiscuity.AddToQueue;
+import promiscuity.Promiscuity.*;
+
 
 import java.util.*;
 import java.util.stream.Stream;
@@ -71,6 +69,20 @@ public class PromiscuityQueueNodeCount {
         return result.stream();
     }
 
+    int promiscuityScore_subroutine(Node node, Node tail, int depth, int k, int path_score, PriorityQueue<Entry> priorityQueue) {
+        int updated_path_score = max(node.getDegree(), path_score);
+        if (depth == k) {
+            boolean tail_neighbor = StreamSupport.stream(node.getRelationships().spliterator(), false)
+                    .anyMatch(rel -> rel.getOtherNode(node).equals(tail));
+            if (tail_neighbor) return updated_path_score;
+            else return -1;
+        } else {
+            node.getRelationships().iterator()
+                    .forEachRemaining(rel -> AddToQueue(priorityQueue, rel.getOtherNode(node), updated_path_score, depth + 1));
+        }
+
+        return -1;
+    }
 
     /**
      * This procedure takes a source Node, a tail Node, and a length parameter k.
@@ -109,7 +121,7 @@ public class PromiscuityQueueNodeCount {
                 if(tail_neighbor) best_score = min(best_score,updated_path_score);
             }
             else{
-                sourceNode.getRelationships().iterator()
+                node.getRelationships().iterator()
                         .forEachRemaining(rel -> AddToQueue(queue, rel.getOtherNode(node), updated_path_score, head.depth+1));
             }
         }
@@ -118,7 +130,10 @@ public class PromiscuityQueueNodeCount {
         return result.stream();
     }
 
-
+    void AddToQueue(Queue<Entry> priorityQueue, Node node, int path_score, int depth) {
+        Entry e = new Entry(node.getDegree(), path_score, depth, node);
+        priorityQueue.add(e);
+    }
 
 
     public static class OutputQueueCount {
