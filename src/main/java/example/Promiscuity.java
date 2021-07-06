@@ -21,8 +21,11 @@ import static java.lang.Math.min;
 
 
 /**
- * The procedures here aim to provide fast and efficent methods for finding low promiscuity scores and associated
- * pathways within Neo4J graphs.
+ * The procedures here aim to provide fast and efficient methods for finding low promiscuity scores and associated
+ * pathways within Neo4J graphs. We provide three procedures: promiscuity.promiscuityScore an implementation of our novel
+ * promiscuity score calculation algorithm, promiscuity.naivePromiscuityScore an implementation of a promiscuity search
+ * which leverages BFS and iterates through all paths in the graph, and promiscuity.promiscuityPath a modification of
+ * our novel algorithm which can also return the top-n least promiscuous paths.
  */
 public class Promiscuity {
     // This gives us a log instance that outputs messages to the
@@ -57,13 +60,14 @@ public class Promiscuity {
         while (!priorityQueue.isEmpty()) {
             Entry head = priorityQueue.poll();
             Node node = head.node;
-            if (head.degree >= best_score) {
-                result.add(new Output(best_score));
-                break;
-            }
+            //if (head.degree >= best_score) {
+            //    result.add(new Output(best_score));
+            //    break;
+            //}
             int x = promiscuityScore_subroutine(node, tailNode, head.depth, k, head.path_score, priorityQueue);
             if (x != -1) {
                 best_score = min(best_score, x);
+                break;
             }
         }
         if(result.size()==0 & best_score < Integer.MAX_VALUE){
@@ -74,9 +78,12 @@ public class Promiscuity {
 
 
     /**
-     * This procedure serves to
+     * This procedure serves to look a node from the top of the queue. We then check if our current depth (length of
+     * path) is equal to the desired depth (parameter k). If we are at the desired depth: we check to see if an edge
+     * exists between the provided node and the tail node. If we are not at the desired depth, we add all neighbors of
+     * the provided node to the queue, with the depth value (path length) increased by one.
      **/
-    private int promiscuityScore_subroutine(Node node, Node tail, int depth, int k, int path_score, PriorityQueue<Entry> priorityQueue) {
+    public static int promiscuityScore_subroutine(Node node, Node tail, int depth, int k, int path_score, PriorityQueue<Entry> priorityQueue) {
         int updated_path_score = max(node.getDegree(), path_score);
         if (depth == k) {
             boolean tail_neighbor = StreamSupport.stream(node.getRelationships().spliterator(), false)
@@ -165,7 +172,7 @@ public class Promiscuity {
         return builder.build();
     }
 
-    private Relationship getRelationship(Node a, Node b){
+    Relationship getRelationship(Node a, Node b){
         for( Relationship rel : a.getRelationships()){
             if(rel.getOtherNode(a).equals(b)) return rel;
         }
@@ -216,9 +223,12 @@ public class Promiscuity {
     }
 
     /**
-     * This procedure serves to
+     * This procedure serves to look a PathEntry object from the top of the queue. We then check if our current depth
+     * (length of path) is equal to the desired depth (parameter k). If we are at the desired depth: we check to see if
+     * an edge exists between our node and the tail node. If we are not at the desired depth, we add all neighbors of
+     * the provided node to the queue, with the depth value (path length) increased by one.
      **/
-    private int promiscuityPath_subroutine(PathEntry entry, Node tail, int k, PriorityQueue<PathEntry> priorityQueue) {
+    int promiscuityPath_subroutine(PathEntry entry, Node tail, int k, PriorityQueue<PathEntry> priorityQueue) {
         Node node = entry.node;
         int updated_path_score = max(node.getDegree(), entry.path_score);
         if (entry.depth == k) {
@@ -239,7 +249,7 @@ public class Promiscuity {
      * @param priorityQueue the queue which we are adding the Entry to.
      * @param node          the node which we should create Entry for and append to queue.
      */
-    private void AddToQueue(Queue<Entry> priorityQueue, Node node, int path_score, int depth) {
+    static void AddToQueue(Queue<Entry> priorityQueue, Node node, int path_score, int depth) {
         Entry e = new Entry(node.getDegree(), path_score, depth, node);
         priorityQueue.add(e);
     }
@@ -250,7 +260,7 @@ public class Promiscuity {
      * @param priorityQueue the queue which we are adding the Entry to.
      * @param node          the node which we should create Entry for and append to queue.
      */
-    private void AddToQueue(PriorityQueue<PathEntry> priorityQueue, Node node, int path_score, int depth, PathEntry parent) {
+    static void AddToQueue(PriorityQueue<PathEntry> priorityQueue, Node node, int path_score, int depth, PathEntry parent) {
         PathEntry e = new PathEntry(node.getDegree(), path_score, depth, node, parent);
         priorityQueue.add(e);
     }
