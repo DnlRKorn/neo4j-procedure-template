@@ -71,6 +71,29 @@ public class PromiscuityTests {
 
     /**
      * Creates a graph with three pathways from a source to a tail node. One pathway through a node with degree 3, one
+     * through a node with degree 5, and one through node with degree 10. Runs promiscuity.promiscuityScore and tests
+     * output.
+     */
+    @Test
+    public void promiscuityDFSScoreTest() {
+
+        try(Session session = driver.session()) {
+            buildTestGraph(session);
+
+            Record record = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL " +
+                    "promiscuity.promiscuityDFSScore(s,t,1) YIELD promiscuity_score RETURN promiscuity_score").single();
+            assertEquals(record.get("promiscuity_score").asInt(),3);
+
+            //Remove the connection from degree3 and tail. Expect new promiscuity_score of graph to be 5.
+            session.run("MATCH (n:Node {name:'degree3'})-[r:Edge]->(t:Node {name:'tail'}) DELETE r");
+            record = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL promiscuity.promiscuityDFSScore(s,t,1) YIELD promiscuity_score RETURN promiscuity_score").single();
+            assertEquals(record.get("promiscuity_score").asInt(),5);
+
+        }
+    }
+
+    /**
+     * Creates a graph with three pathways from a source to a tail node. One pathway through a node with degree 3, one
      * through a node with degree 5, and one through node with degree 10. Runs promiscuity.naivePromiscuityScore and
      * tests output.
      */
@@ -256,10 +279,10 @@ public class PromiscuityTests {
      */
     @Test
     public void queueEntryTest() {
-        final Promiscuity.Entry degree_5 = new Promiscuity.Entry(5,2,3,null);
-        final Promiscuity.Entry degree_10 = new Promiscuity.Entry(10,2,3,null);
+        final promiscuity.Entry degree_5 = new promiscuity.Entry(5,2,3,null);
+        final promiscuity.Entry degree_10 = new promiscuity.Entry(10,2,3,null);
 
-        final Promiscuity.Entry degree_5_equal_test = new Promiscuity.Entry(5,6,8,null);
+        final promiscuity.Entry degree_5_equal_test = new promiscuity.Entry(5,6,8,null);
 
         assertTrue(degree_10.compareTo(degree_5) > 0);
         assertTrue(degree_5.compareTo(degree_10) < 0);
@@ -272,19 +295,19 @@ public class PromiscuityTests {
      */
     @Test
     public void priorityQueueTest() {
-        final Promiscuity.Entry degree_5 = new Promiscuity.Entry(5,2,3,null);
-        final Promiscuity.Entry degree_10 = new Promiscuity.Entry(10,2,3,null);
-        final Promiscuity.Entry degree_1 = new Promiscuity.Entry(1,7,5,null);
+        final promiscuity.Entry degree_5 = new promiscuity.Entry(5,2,3,null);
+        final promiscuity.Entry degree_10 = new promiscuity.Entry(10,2,3,null);
+        final promiscuity.Entry degree_1 = new promiscuity.Entry(1,7,5,null);
 
-        PriorityQueue<Promiscuity.Entry> priorityQueue = new PriorityQueue<>();
+        PriorityQueue<promiscuity.Entry> priorityQueue = new PriorityQueue<>();
         priorityQueue.add(degree_5);
         priorityQueue.add(degree_10);
         priorityQueue.add(degree_1);
 
-        Promiscuity.Entry queue_first = priorityQueue.poll();
-        Promiscuity.Entry queue_second = priorityQueue.poll();
-        Promiscuity.Entry queue_third = priorityQueue.poll();
-        Promiscuity.Entry queue_fourth = priorityQueue.poll();
+        promiscuity.Entry queue_first = priorityQueue.poll();
+        promiscuity.Entry queue_second = priorityQueue.poll();
+        promiscuity.Entry queue_third = priorityQueue.poll();
+        promiscuity.Entry queue_fourth = priorityQueue.poll();
 
         assertEquals(degree_1,queue_first); //Lowest degree should be first dequeued.
         assertEquals(degree_5,queue_second);
@@ -319,6 +342,51 @@ public class PromiscuityTests {
 
         }
     }
+
+    @Test
+    public void promiscuityDFSTest_kEquals2() {
+
+        try(Session session = driver.session()) {
+            //Create our test graph. Remove the connection between our existing paths and the tail node. Introduce a new
+            // node which links our nodes to the tail node titled "intermediate". The resulting paths will look like
+            // s -> n -> i -> t.
+
+            buildTestGraph(session);
+
+            session.run("MATCH (n:Node {name:'degree3'})-[r:Edge]->(t:Node {name:'tail'}) DELETE r");
+            session.run("MATCH (n:Node {name:'degree5'})-[r:Edge]->(t:Node {name:'tail'}) DELETE r");
+            session.run("MATCH (n:Node {name:'degree10'})-[r:Edge]->(t:Node {name:'tail'}) DELETE r");
+
+            session.run("CREATE (i:Node {name:'intermediate'})");
+            session.run("MATCH (i:Node {name:'intermediate'}),(t:Node {name:'tail'}) CREATE (i)-[r:Edge]->(t)");
+
+
+            session.run("MATCH (n:Node {name:'degree3'}), (i:Node {name:'intermediate'}) CREATE (n)-[r:Edge]->(i)");
+            session.run("MATCH (n:Node {name:'degree5'}), (i:Node {name:'intermediate'}) CREATE (n)-[r:Edge]->(i)");
+            session.run("MATCH (n:Node {name:'degree10'}), (i:Node {name:'intermediate'}) CREATE (n)-[r:Edge]->(i)");
+
+
+
+
+            List<Record> record_list = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL promiscuity.promiscuityDFSScore(s,t,2) YIELD promiscuity_score RETURN promiscuity_score").list();
+            Record record = record_list.get(0);
+
+            assertEquals(record.get("promiscuity_score").asInt(),4);
+
+
+            //Increase the degree of the intermediate node to 15. This should force all paths to have a promiscuity
+            // score of 15.
+            for(int i=0;i<15-4;i++){
+                session.run(String.format("MATCH (i:Node {name:'intermediate'}) CREATE p=(i)-[r:Edge]->(a:Node {name:'d%d'})",i));
+            }
+
+            record_list = session.run("MATCH (s {name:'source'}), (t {name:'tail'}) CALL promiscuity.promiscuityDFSScore(s,t,2) YIELD promiscuity_score RETURN promiscuity_score").list();
+            for(  Record r  : record_list ) {
+                assertEquals(r.get("promiscuity_score").asInt(),15);
+            }
+        }
+    }
+
 
 
 }
