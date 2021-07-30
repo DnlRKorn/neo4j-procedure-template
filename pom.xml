@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>org.neo4j.example</groupId>
-  <artifactId>promiscuity-pluginm</artifactId>
+  <artifactId>promiscuity-plugin</artifactId>
   <version>1.0.0-SNAPSHOT</version>
 
   <packaging>jar</packaging>

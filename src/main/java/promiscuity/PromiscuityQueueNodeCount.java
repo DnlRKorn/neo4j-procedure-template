@@ -84,6 +84,107 @@ public class PromiscuityQueueNodeCount {
         return -1;
     }
 
+
+    static int dfs_queue_cnt;
+    /**
+     * This procedure takes a source Node, a tail Node, and a length parameter k. This version of the algorithm is a
+     * modification of DFS. It uses a priority queue to ensure only the nodes of low degree are inspected, but does this
+     * on a single node. It can be viewed as a modification of "Branch and Prune" methods.
+     * It's worst case runtime is O(p * b^(k-1)) and it's memory usage is O(k*b + p)
+     *
+     * @param sourceNode node to start promiscuity search from
+     * @param tailNode   node to end promiscuity search at
+     * @param k_input    length of paths. If k=2 s->v1->v2->t would be a valid path. Must be of type Number to satisfy Neo4j.
+     * @return An Output instance with the lowest scoring promiscuity score fo the pathway.
+     */
+    @Procedure(value = "promiscuityQueueCount.promiscuityDFSScoreQueueCount")
+    @Description("Get the lowest promiscuity score of paths of length k connecting a source and tail node.")
+    public Stream<OutputQueueCount> DFSPromiscuityScore(
+            @Name("sourceNode") Node sourceNode,
+            @Name("tailNode") Node tailNode,
+            @Name("k") Number k_input) {
+        ArrayList<OutputQueueCount> result = new ArrayList<>();
+        int k = k_input.intValue();
+        dfs_queue_cnt = 0;
+        PriorityQueue<Entry> priorityQueue = new PriorityQueue<>();
+
+        sourceNode.getRelationships().iterator()
+                .forEachRemaining(rel -> AddToQueue(priorityQueue, rel.getOtherNode(sourceNode), 0, 1));
+
+        int best_score = Integer.MAX_VALUE;
+        while (!priorityQueue.isEmpty()) {
+            dfs_queue_cnt++;
+            Entry head = priorityQueue.poll();
+            Node node = head.node;
+            if (head.degree >= best_score) {
+                break;
+            }
+            int head_score = promiscuity_DFS_routine(node, tailNode,1, k, best_score);
+            if (head_score != -1) {
+                best_score = min(best_score, head_score);
+            }
+        }
+        if(best_score < Integer.MAX_VALUE){
+            result.add(new OutputQueueCount(best_score,dfs_queue_cnt));
+        }
+        return result.stream();
+    }
+
+    /**
+     * This procedure serves to explore the provided Node in a recursive DFS style, finding the optimal path from the
+     * provided node to a tail node.
+     * If(depth==k), check if the node has an edge connected to the tail.
+     *      If yes: return the degree of the node.
+     *      If no: return -1.
+     * If(depth<k), check all neighbors of the node  in recursive fashion.
+     *     for neighbor of node:
+     *         check if path exists between node and t.
+     *             if yes, add score to local minimum and keep searching.
+     *     if path_found return MIN(DEGREE(node), path_score)
+     *     else: return -1
+     **/
+    private int promiscuity_DFS_routine(Node node, Node tailNode, int depth, int k,  int best_score) {
+        //String name = (String) node.getProperty("name");
+        if (depth == k) {
+            boolean tail_neighbor = StreamSupport.stream(node.getRelationships().spliterator(), false)
+                    .anyMatch(rel -> rel.getOtherNode(node).equals(tailNode));
+            if (tail_neighbor) return node.getDegree();
+            else return -1;
+        }
+
+        PriorityQueue<Entry> priorityQueue = new PriorityQueue<>();
+
+        //We cannot use the promiscuity_subroutine to enqueue the neighbors of the source node, as the degree of the
+        // source node has no effect on the promiscuity score of paths.
+        node.getRelationships().iterator()
+                .forEachRemaining(rel -> AddToQueue(priorityQueue, rel.getOtherNode(node), 0, 1));
+
+        int best_score_local = Integer.MAX_VALUE;
+
+        while (!priorityQueue.isEmpty()) {
+            dfs_queue_cnt++;
+            Entry head = priorityQueue.poll();
+            Node headNode = head.node;
+            if (head.degree >= best_score || head.degree >= best_score_local) {
+                return max(best_score_local, node.getDegree());
+            }
+            int head_score = promiscuity_DFS_routine(headNode, tailNode, depth + 1, k, min(best_score, best_score_local));
+            if (head_score != -1) {
+                best_score_local = min(best_score_local, head_score);
+            }
+        }
+
+        //best_score_local was never updated. That means we could not find a path from this node to tail (with
+        // promiscuity lower than best_score).
+        if(best_score_local==Integer.MAX_VALUE){
+            return -1;
+        }
+
+        return max(best_score_local, node.getDegree());
+    }
+
+
+
     /**
      * This procedure takes a source Node, a tail Node, and a length parameter k.
      *
